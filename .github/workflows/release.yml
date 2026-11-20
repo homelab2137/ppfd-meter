@@ -1,0 +1,30 @@
+name: release
+on:
+  push:
+    tags: ['v*']
+permissions:
+  contents: write
+jobs:
+  apk:
+    runs-on: [self-hosted, homelab]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with: { distribution: temurin, java-version: '21' }
+      - name: Decode keystore
+        env:
+          KS_B64: ${{ secrets.KEYSTORE_B64 }}
+        run: printf '%s' "$KS_B64" | base64 -d > "$RUNNER_TEMP/release.jks"
+      - name: Build signed APK
+        env:
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+        run: |
+          export KEYSTORE_FILE="$RUNNER_TEMP/release.jks"
+          export VERSION_NAME="${GITHUB_REF_NAME#v}"
+          export VERSION_CODE="${GITHUB_RUN_NUMBER}"
+          ./gradlew --no-daemon :app:assembleRelease
+          cp app/build/outputs/apk/release/app-release.apk "swiatlo-roslin-${VERSION_NAME}.apk"
+      - name: Publish release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create "$GITHUB_REF_NAME" --generate-notes swiatlo-roslin-*.apk
