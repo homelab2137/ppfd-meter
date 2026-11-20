@@ -39,4 +39,11 @@ jobs:
       - name: Publish release
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh release create "$GITHUB_REF_NAME" --generate-notes swiatlo-roslin-*.apk
+        run: |
+          api="https://api.github.com/repos/${GITHUB_REPOSITORY}"
+          rel=$(curl -fsS -X POST -H "Authorization: Bearer $GH_TOKEN" -H "Accept: application/vnd.github+json" \
+            "$api/releases" -d "{\"tag_name\":\"$GITHUB_REF_NAME\",\"name\":\"$GITHUB_REF_NAME\",\"generate_release_notes\":true}")
+          id=$(printf '%s' "$rel" | python3 -c 'import sys,json;print(json.load(sys.stdin)["id"])')
+          f=$(ls swiatlo-roslin-*.apk)
+          curl -fsS -X POST -H "Authorization: Bearer $GH_TOKEN" -H "Content-Type: application/vnd.android.package-archive" \
+            --data-binary "@$f" "https://uploads.github.com/repos/${GITHUB_REPOSITORY}/releases/$id/assets?name=$f" >/dev/null
